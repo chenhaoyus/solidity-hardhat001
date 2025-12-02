@@ -1,9 +1,19 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
+require("hardhat-deploy");
+require("@openzeppelin/hardhat-upgrades");
+  
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
   solidity: "0.8.28",
+  namedAccounts: {
+    deployer: {
+      default: 0, // 第一个账户
+      user1: 1, // 第二个账户
+      user2: 2, // 第三个账户
+    },
+  },
 
   networks: {
     localhost: {
