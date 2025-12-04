@@ -10,7 +10,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
-
 contract NftAuction is Initializable, UUPSUpgradeable, IERC721Receiver {
     struct Auction {
         //卖家地址
@@ -52,15 +51,22 @@ contract NftAuction is Initializable, UUPSUpgradeable, IERC721Receiver {
 
     function initialize() initializer public {
         admin = msg.sender;
+        priceFeeds[address(0)] = AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306); // ETH/USD
     }
 
     function setPriceFeed(address tokenAddress, address priceFeedAddress) public {
         priceFeeds[tokenAddress] = AggregatorV3Interface(priceFeedAddress);
+
     }
 
 
     function getChainlinkDataFeedLatestAnswer(address tokenAddress) public view returns (int) {
         AggregatorV3Interface priceFeed = priceFeeds[tokenAddress];
+
+        // if(tokenAddress == address(0) ){
+        //     return int(1);
+        // }
+        
         // prettier-ignore
         (
             uint80 roundId,
@@ -69,14 +75,15 @@ contract NftAuction is Initializable, UUPSUpgradeable, IERC721Receiver {
             uint256 updatedAt,
             uint80 answeredInRound
         ) = priceFeed.latestRoundData();
+
         return price;
     }
 
     function createAuction(uint256 _duration, uint _startPrice, address _nftContract, uint256 _tokenId) public {
         //必须管理员创建拍卖
         require(admin == msg.sender, "Only admin can create auction");
-        //持续时间大于0
-        require(_duration >= 1000 *10, "Duration must be greater than 1 minute");
+        //持续时间大于10秒
+        require(_duration >= 1000 *10, "Duration must be greater than 10 seconds");
         //开始价格大于0
         require(_startPrice > 0, "Start price must be greater than 0");
 

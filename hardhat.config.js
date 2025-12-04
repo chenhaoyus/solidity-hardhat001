@@ -21,8 +21,12 @@ module.exports = {
     },
     sepolia:{
       url:`https://sepolia.infura.io/v3/${process.env.infura_key}`,
-      accounts:[process.env.private_key]
+      accounts:[process.env.private_key],
+      chainId: 11155111,
     }
+  },
+  mocha: {
+    timeout: 2000000,
   },
 };
 
