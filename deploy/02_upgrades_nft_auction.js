@@ -16,6 +16,11 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
     }
     console.log("使用的代理地址:", nftAuctionProxyAddress);
 
+    const NftAuctionV2 = await ethers.getContractFactory("NftAuctionV2");
+    const nftAuctionProxyV2 = await upgrades.upgradeProxy(
+        nftAuctionProxyAddress,
+        NftAuctionV2
+    );
     await nftAuctionProxyV2.waitForDeployment();
     const nftAuctionProxyV2Address = await nftAuctionProxyV2.getAddress();
     const nftAuctionV2Address = await upgrades.erc1967.getImplementationAddress(nftAuctionProxyV2Address);
