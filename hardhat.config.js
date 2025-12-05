@@ -21,7 +21,7 @@ module.exports = {
     },
     sepolia:{
       url:`https://sepolia.infura.io/v3/${process.env.infura_key}`,
-      accounts:[process.env.private_key],
+      accounts:[process.env.private_key_01, process.env.private_key_02, process.env.private_key_03],
       chainId: 11155111,
     }
   },

@@ -51,7 +51,6 @@ contract NftAuction is Initializable, UUPSUpgradeable, IERC721Receiver {
 
     function initialize() initializer public {
         admin = msg.sender;
-        priceFeeds[address(0)] = AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306); // ETH/USD
     }
 
     function setPriceFeed(address tokenAddress, address priceFeedAddress) public {
@@ -69,11 +68,11 @@ contract NftAuction is Initializable, UUPSUpgradeable, IERC721Receiver {
         
         // prettier-ignore
         (
-            uint80 roundId,
+            ,
             int256 price,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
+            ,
+            ,
+            
         ) = priceFeed.latestRoundData();
 
         return price;
@@ -83,7 +82,7 @@ contract NftAuction is Initializable, UUPSUpgradeable, IERC721Receiver {
         //必须管理员创建拍卖
         require(admin == msg.sender, "Only admin can create auction");
         //持续时间大于10秒
-        require(_duration >= 1000 *10, "Duration must be greater than 10 seconds");
+        require(_duration >= 10, "Duration must be greater than 10 seconds");
         //开始价格大于0
         require(_startPrice > 0, "Start price must be greater than 0");
 
@@ -112,24 +111,33 @@ contract NftAuction is Initializable, UUPSUpgradeable, IERC721Receiver {
         Auction storage auction = auctions[_auctionId];
 
         //判断当前拍卖是否已经结束
-        require(!auction.ended && block.timestamp <= auction.startTime + auction.duration, "Auction already ended");
+        require(!auction.ended && block.timestamp < auction.startTime + auction.duration, "Auction already ended");
 
         //根据usd进行金额转换
         uint payValue;
         if (_tokenAddress != address(0)) {
-            // 处理 ERC20
-            // 检查是否是 ERC20 资产
-            payValue = amount * uint(getChainlinkDataFeedLatestAnswer(_tokenAddress));
+            // 处理 ERC20 (USDC有6位小数)
+            // Chainlink价格源返回的价格通常有8位小数
+            payValue = amount * uint(getChainlinkDataFeedLatestAnswer(_tokenAddress)) / 10**6;
         } else {
-            // 处理 ETH
+            // 处理 ETH (ETH有18位小数)
+            // Chainlink价格源返回的价格通常有8位小数
             amount = msg.value;
-
-            payValue = amount * uint(getChainlinkDataFeedLatestAnswer(address(0)));
+            payValue = amount * uint(getChainlinkDataFeedLatestAnswer(address(0))) / 10**18;
         }
 
-        uint startPriceValue = auction.startingPrice * uint(getChainlinkDataFeedLatestAnswer(auction.tokenAddress));
+        // 开始价格默认为ETH
+        uint startPriceValue = auction.startingPrice * uint(getChainlinkDataFeedLatestAnswer(address(0))) / 10**18;
 
-        uint highestBidValue = auction.highestBid * uint(getChainlinkDataFeedLatestAnswer(auction.tokenAddress));
+        // 最高出价的代币类型是当前最高出价者使用的代币类型
+        uint highestBidValue;
+        if (auction.tokenAddress != address(0)) {
+            // 最高出价是ERC20
+            highestBidValue = auction.highestBid * uint(getChainlinkDataFeedLatestAnswer(auction.tokenAddress)) / 10**6;
+        } else {
+            // 最高出价是ETH
+            highestBidValue = auction.highestBid * uint(getChainlinkDataFeedLatestAnswer(address(0))) / 10**18;
+        }
         //判断当前出价是否大于最高出价
         require(payValue > highestBidValue && payValue > startPriceValue, "Bid must be higher than current highest bid");
 
@@ -159,7 +167,7 @@ contract NftAuction is Initializable, UUPSUpgradeable, IERC721Receiver {
         auction.highestBidder = msg.sender;
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override  {
+    function _authorizeUpgrade(address newImplementation) internal view override  {
         require(msg.sender == admin, "Only admin can upgrade");
     }
 
@@ -168,7 +176,9 @@ contract NftAuction is Initializable, UUPSUpgradeable, IERC721Receiver {
         Auction storage auction = auctions[_auctionId];
 
         //判断当前拍卖是否已经结束
-        require(!auction.ended && block.timestamp < (auction.startTime + auction.duration), "Auction has not ended");
+        require(!auction.ended, "Auction has not ended");
+        //require(block.timestamp < (auction.startTime + auction.duration), "Auction time not end");
+
 
         //判断当前调用者是否为卖家
         require(auction.seller == msg.sender, "Only seller can end auction");
@@ -180,7 +190,13 @@ contract NftAuction is Initializable, UUPSUpgradeable, IERC721Receiver {
         IERC721(auction.nftContract).safeTransferFrom(address(this), auction.highestBidder, auction.tokenId);
 
         // 将最高出价转交给卖家
-        payable(auction.seller).transfer(auction.highestBid);
+        if (auction.tokenAddress == address(0)) {
+            // ETH出价，使用transfer转账
+            payable(auction.seller).transfer(auction.highestBid);
+        } else {
+            // ERC20代币出价，使用transfer转账
+            IERC20(auction.tokenAddress).transfer(auction.seller, auction.highestBid);
+        }
 
         //标记拍卖为已结束
         auction.ended = true;

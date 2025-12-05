@@ -39,13 +39,13 @@ describe("NftAuction Mixed Token Bidding", function () {
         await myNFT.waitForDeployment();
         console.log("MyNFT部署地址:", await myNFT.getAddress());
 
-        // 部署 NftAuction 合约
-        const NftAuction = await ethers.getContractFactory("NftAuction");
-        nftAuction = await upgrades.deployProxy(NftAuction, {
-            initializer: "initialize",
-        });
-        await nftAuction.waitForDeployment();
-        console.log("NftAuction部署地址:", await nftAuction.getAddress());
+        // 运行部署脚本部署 NftAuction 合约
+        await deployments.run(["deployNftAuction"]);
+        
+        // 获取部署的 NftAuction 合约实例
+        const nftAuctionDeployment = await deployments.get("NftAuction");
+        nftAuction = await ethers.getContractAt("NftAuction", nftAuctionDeployment.address);
+        console.log("NftAuction部署地址:", nftAuctionDeployment.address);
 
         // 设置价格源
         await nftAuction.setPriceFeed(ethers.ZeroAddress, "0x694AA1769357215DE4FAC081bf1f309aDC325306");
@@ -257,5 +257,55 @@ describe("NftAuction Mixed Token Bidding", function () {
         console.log("卖家收到USDC:", ethers.formatUnits(sellerUSDCBalance, 6));
 
         expect(nftOwner).to.equal(buyer2.address);
+    });
+
+    it("应该使用02_upgrades_nft_auction.js脚本升级合约到V2版本", async function () {
+        console.log("=== 使用部署脚本升级到V2版本 ===");
+        
+        // 保存原合约地址用于验证
+        const originalProxyAddress = await nftAuction.getAddress();
+        console.log("原代理地址:", originalProxyAddress);
+        
+        // 运行升级脚本升级到V2版本
+        await deployments.run(["upgradeNftAuctionV2"]);
+        
+        // 获取升级后的合约实例
+        const nftAuctionV2Deployment = await deployments.get("NftAuctionV2");
+        const nftAuctionV2 = await ethers.getContractAt("NftAuctionV2", nftAuctionV2Deployment.address);
+        await nftAuctionV2.waitForDeployment();
+        
+        console.log("NftAuction V2 代理地址:", await nftAuctionV2.getAddress());
+        
+        // 验证代理地址没有变化
+        expect(await nftAuctionV2.getAddress()).to.equal(originalProxyAddress);
+        console.log("代理地址验证成功");
+        
+        // 测试V2版本特有的testHello方法
+        const helloMessage = await nftAuctionV2.testHello();
+        expect(helloMessage).to.equal("hello");
+        console.log("V2新功能testHello测试成功:", helloMessage);
+        
+        // 创建一个新的拍卖来验证升级后的合约功能
+        const duration = 120;
+        const startPrice = ethers.parseEther("0.0000000001");
+
+        // 铸币
+        const mintTx = await myNFT.connect(owner).mintNFT(owner.address,"https://example.com/token/1", 1);
+        await mintTx.wait();
+        console.log("✅ 铸造NFT成功!");
+        
+        const createTx = await nftAuctionV2.createAuction(
+            duration,
+            startPrice,
+            await myNFT.getAddress(),
+            1 // tokenId 1
+        );
+        await createTx.wait();
+        console.log("✅ 升级后创建拍卖成功!");
+        
+        // 验证新创建的拍卖
+        const auction = await nftAuctionV2.auctions(1);
+        expect(auction.seller).to.equal(owner.address);
+        console.log("升级后拍卖数据验证成功");
     });
 });

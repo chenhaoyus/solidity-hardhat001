@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "./NftAuction.sol";
 
-contract NftAuctionV2 is Initializable, NftAuction {
+contract NftAuctionV2 is NftAuction {
     function testHello() public pure returns (string memory) {
         return "hello";
     }

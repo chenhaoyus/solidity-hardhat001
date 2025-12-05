@@ -4,18 +4,17 @@ const path = require("path");
 
 module.exports = async function ({ getNamedAccounts, deployments }) {
 
-    const { save } = deployments;
-    const { deployer } = await getNamedAccounts();
+    const { save, get } = deployments;
     const storePath = await path.resolve(__dirname, "./.cache/proxyNftAuction.json");
     const storeData = fs.readFileSync(storePath, "utf-8");
+    const parsedData = JSON.parse(storeData);
 
-    const {nftAuctionProxyAddress, nftAuctionAddress, abi} = JSON.parse(storeData);
-
-    const NftAuctionV2 = await ethers.getContractFactory("NftAuctionV2");
-    const nftAuctionProxyV2 = await upgrades.upgradeProxy(
-        nftAuctionProxyAddress,
-        NftAuctionV2
-    );
+    // 支持两种缓存文件结构：初始部署和升级后
+    const nftAuctionProxyAddress = parsedData.nftAuctionProxyAddress || parsedData.nftAuctionProxyV2Address;
+    if (!nftAuctionProxyAddress) {
+        throw new Error("Proxy address not found in cache file");
+    }
+    console.log("使用的代理地址:", nftAuctionProxyAddress);
 
     await nftAuctionProxyV2.waitForDeployment();
     const nftAuctionProxyV2Address = await nftAuctionProxyV2.getAddress();
